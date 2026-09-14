@@ -11,7 +11,7 @@ import time
 TOKEN = '8734549948:AAG8XuP5fWTa1oGHt4QYrP49i_VYx9iXYSk'
 bot = telebot.TeleBot(TOKEN)
 
-# آیدی عددی صاحب اصلی ربات خودتان را اینجا بگذارید (اگر 7351850953 آیدی خودتان نیست، با آیدی عددی واقعی خودتان عوض کنید):
+# آیدی عددی صاحب اصلی ربات خودتان را اینجا بگذارید:
 MAIN_OWNER_ID = 7351850953
 
 # مجموعه‌ای برای ذخیره یوزرنیم‌های ادمین (با حروف کوچک و بدون @)
@@ -58,6 +58,14 @@ def is_authorized(user_id, username):
   return False
 
 
+# تابع ساخت کیبورد ثابت پایین صفحه (Reply Keyboard)
+def get_main_reply_keyboard():
+  keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+  btn_start = types.KeyboardButton('/start')
+  keyboard.add(btn_start)
+  return keyboard
+
+
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
   chat_id = message.chat.id
@@ -84,6 +92,13 @@ def send_welcome(message):
       chat_id,
       '✨ خوش اومدی به ربات قرعه کشی مشهد استار\nلطفاً یکی از گزینه‌های زیر را انتخاب کن:',
       reply_markup=markup,
+  )
+
+  # ارسال یا آپدیت کیبورد ثابت پایین صفحه
+  bot.send_message(
+      chat_id,
+      'برای دسترسی سریع به منو، می‌توانید از دکمه پایین صفحه استفاده کنید 👇',
+      reply_markup=get_main_reply_keyboard(),
   )
 
 
@@ -179,9 +194,16 @@ def handle_text_input(message):
   user_id = message.from_user.id
   username = message.from_user.username
 
+  # اگر کاربر روی دکمه /start پایین صفحه زد، خودکار دستور /start رو اجرا کن
+  if text == '/start':
+    send_welcome(message)
+    return
+
   if chat_id not in user_state:
     bot.send_message(
-        chat_id, '⚠️ لطفاً ابتدا دستور /start را بزنید و از منو استفاده کنید.'
+        chat_id,
+        '⚠️ لطفاً ابتدا دستور /start را بزنید و از منو استفاده کنید.',
+        reply_markup=get_main_reply_keyboard(),
     )
     return
 
