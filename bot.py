@@ -14,8 +14,28 @@ bot = telebot.TeleBot(TOKEN)
 # آیدی عددی صاحب اصلی ربات خودتان را اینجا بگذارید:
 MAIN_OWNER_ID = 7351850953
 
-# مجموعه‌ای برای ذخیره یوزرنیم‌های ادمین (با حروف کوچک و بدون @)
-admins_usernames = set()
+ADMINS_FILE = 'admins.json'
+
+
+# تابع برای خواندن ادمین‌ها از فایل
+def load_admins():
+  if os.path.exists(ADMINS_FILE):
+    try:
+      with open(ADMINS_FILE, 'r', encoding='utf-8') as f:
+        return set(json.load(f))
+    except:
+      return set()
+  return set()
+
+
+# تابع برای ذخیره ادمین‌ها در فایل
+def save_admins():
+  with open(ADMINS_FILE, 'w', encoding='utf-8') as f:
+    json.dump(list(admins_usernames), f, ensure_ascii=False)
+
+
+# مجموعه‌ای برای ذخیره یوزرنیم‌های ادمین (بارگذاری از فایل)
+admins_usernames = load_admins()
 
 app = Flask('')
 
@@ -66,12 +86,7 @@ def get_main_reply_keyboard():
   return keyboard
 
 
-@bot.message_handler(commands=['start', 'help'])
-def send_welcome(message):
-  chat_id = message.chat.id
-  # پاک کردن وضعیت قبلی کاربر هنگام زدن استارت مجدد
-  user_state.pop(chat_id, None)
-
+def get_main_menu_markup(user_id):
   markup = types.InlineKeyboardMarkup()
   btn = types.InlineKeyboardButton(
       '🎲 قرعه کشی', callback_data='start_lottery'
@@ -79,7 +94,7 @@ def send_welcome(message):
   markup.add(btn)
 
   # نمایش دکمه‌های افزودن و حذف ادمین فقط برای صاحب اصلی ربات
-  if message.from_user.id == MAIN_OWNER_ID:
+  if user_id == MAIN_OWNER_ID:
     btn_add_admin = types.InlineKeyboardButton(
         '➕ افزودن ادمین', callback_data='add_admin'
     )
@@ -88,17 +103,65 @@ def send_welcome(message):
     )
     markup.add(btn_add_admin, btn_del_admin)
 
+  return markup
+
+
+def get_finished_markup(user_id):
+  markup = types.InlineKeyboardMarkup()
+  btn_retry = types.InlineKeyboardButton(
+      '🎲 قرعه کشی مجدد', callback_data='start_lottery'
+  )
+  btn_main = types.InlineKeyboardButton(
+      '🏠 منوی اصلی', callback_data='back_to_main'
+  )
+  markup.add(btn_retry, btn_main)
+
+  if user_id == MAIN_OWNER_ID:
+    btn_add_admin = types.InlineKeyboardButton(
+        '➕ افزودن ادمین', callback_data='add_admin'
+    )
+    btn_del_admin = types.InlineKeyboardButton(
+        '➖ حذف ادمین', callback_data='del_admin'
+    )
+    markup.add(btn_add_admin, btn_del_admin)
+
+  return markup
+
+
+@bot.message_handler(commands=['start', 'help'])
+def send_welcome(message):
+  chat_id = message.chat.id
+  user_id = message.from_user.id
+  user_state.pop(chat_id, None)
+
+  markup = get_main_menu_markup(user_id)
+
   bot.send_message(
       chat_id,
       '✨ خوش اومدی به ربات قرعه کشی مشهد استار\nلطفاً یکی از گزینه‌های زیر را انتخاب کن:',
       reply_markup=markup,
   )
 
-  # ارسال یا آپدیت کیبورد ثابت پایین صفحه
   bot.send_message(
       chat_id,
       'برای دسترسی سریع به منو، می‌توانید از دکمه پایین صفحه استفاده کنید 👇',
       reply_markup=get_main_reply_keyboard(),
+  )
+
+
+@bot.callback_query_handler(func=lambda call: call.data == 'back_to_main')
+def back_to_main_callback(call):
+  chat_id = call.message.chat.id
+  user_id = call.from_user.id
+  user_state.pop(chat_id, None)
+
+  markup = get_main_menu_markup(user_id)
+  bot.edit_message_text(
+      '✨ خوش اومدی به ربات قرعه کشی مشهد استار\nلطفاً یکی از گزینه‌های زیر را انتخاب کن:',
+      chat_id=chat_id,
+      message_id=call.message.message_id,
+      reply_markup=markup,
+      parse_mode='Markdown',
   )
 
 
@@ -153,6 +216,7 @@ def remove_admin_handler(call):
   uname = call.data.replace('remove_admin_', '')
   if uname in admins_usernames:
     admins_usernames.remove(uname)
+    save_admins()  # ذخیره تغییرات در فایل
     bot.answer_callback_query(
         call.id, f'@{uname} از لیست ادمین‌ها حذف شد.', show_alert=True
     )
@@ -194,7 +258,6 @@ def handle_text_input(message):
   user_id = message.from_user.id
   username = message.from_user.username
 
-  # اگر کاربر روی دکمه /start پایین صفحه زد، خودکار دستور /start رو اجرا کن
   if text == '/start':
     send_welcome(message)
     return
@@ -210,7 +273,6 @@ def handle_text_input(message):
   state = user_state[chat_id]
   current_step = state.get('step')
 
-  # دریافت یوزرنیم ادمین جدید
   if current_step == 'waiting_new_admin_username':
     if user_id != MAIN_OWNER_ID:
       return
@@ -218,6 +280,7 @@ def handle_text_input(message):
     clean_username = text.lstrip('@').lower()
     if clean_username:
       admins_usernames.add(clean_username)
+      save_admins()  # ذخیره ادمین جدید در فایل
       user_state.pop(chat_id, None)
       bot.send_message(
           chat_id,
@@ -231,11 +294,9 @@ def handle_text_input(message):
       )
     return
 
-  # بررسی اینکه کاربر مجوز استفاده دارد یا خیر
   if not is_authorized(user_id, username):
     return
 
-  # مرحله ۱: دریافت تعداد کل افراد (مثلا ۲۵ -> یعنی ۱ تا ۲۵)
   if current_step == 'waiting_max_num':
     if text.isdigit() and int(text) > 0:
       max_num = int(text)
@@ -249,7 +310,6 @@ def handle_text_input(message):
           chat_id, '⚠️ لطفاً فقط یک عدد صحیح و بزرگ‌تر از صفر وارد کن:'
       )
 
-  # مرحله ۲: دریافت تعداد دفعات قرعه‌کشی (مثلا ۵ بار)
   elif current_step == 'waiting_draw_count':
     if text.isdigit() and int(text) > 0:
       count = int(text)
@@ -262,7 +322,6 @@ def handle_text_input(message):
         )
         return
 
-      # ساخت لیست اعداد از ۱ تا max_num و بر زدن تصادفی بدون تکرار
       pool = list(range(1, max_num + 1))
       random.shuffle(pool)
 
@@ -294,6 +353,7 @@ def handle_text_input(message):
 @bot.callback_query_handler(func=lambda call: call.data == 'start_actual_draw')
 def start_actual_draw_callback(call):
   chat_id = call.message.chat.id
+  user_id = call.from_user.id
   data = user_state.get(chat_id)
 
   if not data or data.get('step') != 'ready_to_start_draw':
@@ -323,7 +383,7 @@ def start_actual_draw_callback(call):
     btn = types.InlineKeyboardButton('🔄 قرعه بعدی', callback_data='next_draw')
     markup.add(btn)
   else:
-    markup = get_finished_markup()
+    markup = get_finished_markup(user_id)
 
   text_msg = (
       f'🎉 **قرعه شماره ۱:**\n\n'
@@ -385,7 +445,7 @@ def next_draw_callback(call):
         parse_mode='Markdown',
     )
   else:
-    markup = get_finished_markup()
+    markup = get_finished_markup(user_id)
     all_drawn_str = ', '.join(map(str, data['drawn_list']))
     text_msg = (
         f'🏁 **پایان قرعه کشی!**\n\n'
@@ -399,15 +459,6 @@ def next_draw_callback(call):
         reply_markup=markup,
         parse_mode='Markdown',
     )
-
-
-def get_finished_markup():
-  markup = types.InlineKeyboardMarkup()
-  btn = types.InlineKeyboardButton(
-      '🎲 قرعه کشی مجدد', callback_data='start_lottery'
-  )
-  markup.add(btn)
-  return markup
 
 
 if __name__ == '__main__':
