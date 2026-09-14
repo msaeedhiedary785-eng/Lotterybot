@@ -11,6 +11,12 @@ import time
 TOKEN = '8734549948:AAHarbMuiuKy3I1bMA6Jkdq9PIbUyDOldEs'
 bot = telebot.TeleBot(TOKEN)
 
+# ثبت خودکار منوی دستورات (علامت / در کنار کادر چت)
+bot.set_my_commands([
+    types.BotCommand('start', 'شروع مجدد ربات و نمایش منو'),
+    types.BotCommand('help', 'راهنمای ربات'),
+])
+
 # آیدی عددی صاحب اصلی ربات خودتان را اینجا بگذارید:
 MAIN_OWNER_ID = 7351850953
 
@@ -78,14 +84,6 @@ def is_authorized(user_id, username):
   return False
 
 
-# تابع ساخت کیبورد ثابت پایین صفحه (Reply Keyboard)
-def get_main_reply_keyboard():
-  keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-  btn_start = types.KeyboardButton('/start')
-  keyboard.add(btn_start)
-  return keyboard
-
-
 def get_main_menu_markup(user_id):
   markup = types.InlineKeyboardMarkup()
   btn = types.InlineKeyboardButton(
@@ -108,13 +106,10 @@ def get_main_menu_markup(user_id):
 
 def get_finished_markup(user_id):
   markup = types.InlineKeyboardMarkup()
-  btn_retry = types.InlineKeyboardButton(
-      '🎲 قرعه کشی مجدد', callback_data='start_lottery'
-  )
   btn_main = types.InlineKeyboardButton(
       '🏠 منوی اصلی', callback_data='back_to_main'
   )
-  markup.add(btn_retry, btn_main)
+  markup.add(btn_main)
 
   if user_id == MAIN_OWNER_ID:
     btn_add_admin = types.InlineKeyboardButton(
@@ -140,12 +135,6 @@ def send_welcome(message):
       chat_id,
       '✨ خوش اومدی به ربات قرعه کشی مشهد استار\nلطفاً یکی از گزینه‌های زیر را انتخاب کن:',
       reply_markup=markup,
-  )
-
-  bot.send_message(
-      chat_id,
-      'برای دسترسی سریع به منو، می‌توانید از دکمه پایین صفحه استفاده کنید 👇',
-      reply_markup=get_main_reply_keyboard(),
   )
 
 
@@ -216,7 +205,7 @@ def remove_admin_handler(call):
   uname = call.data.replace('remove_admin_', '')
   if uname in admins_usernames:
     admins_usernames.remove(uname)
-    save_admins()  # ذخیره تغییرات در فایل
+    save_admins()
     bot.answer_callback_query(
         call.id, f'@{uname} از لیست ادمین‌ها حذف شد.', show_alert=True
     )
@@ -266,7 +255,6 @@ def handle_text_input(message):
     bot.send_message(
         chat_id,
         '⚠️ لطفاً ابتدا دستور /start را بزنید و از منو استفاده کنید.',
-        reply_markup=get_main_reply_keyboard(),
     )
     return
 
@@ -280,7 +268,7 @@ def handle_text_input(message):
     clean_username = text.lstrip('@').lower()
     if clean_username:
       admins_usernames.add(clean_username)
-      save_admins()  # ذخیره ادمین جدید در فایل
+      save_admins()
       user_state.pop(chat_id, None)
       bot.send_message(
           chat_id,
@@ -385,11 +373,18 @@ def start_actual_draw_callback(call):
   else:
     markup = get_finished_markup(user_id)
 
-  text_msg = (
-      f'🎉 **قرعه شماره ۱:**\n\n'
-      f'عدد برنده: **{drawn}**\n\n'
-      f'باقیمانده قرعه‌ها: {remaining_count}'
-  )
+  text_msg = f'🎉 **قرعه شماره ۱:**\n\n' f'عدد برنده: **{drawn}**\n\n'
+  if remaining_count == 0:
+    all_drawn_str = ', '.join(map(str, drawn_list))
+    text_msg = (
+        f'🏁 **پایان قرعه کشی!**\n\n'
+        f'تمام {count} قرعه انجام شد.\n'
+        f'🏆 **اعداد برنده نهایی:** {all_drawn_str}\n\n'
+        f'✨ لطفاً یکی از گزینه‌های زیر را انتخاب کن:'
+    )
+  else:
+    text_msg += f'باقیمانده قرعه‌ها: {remaining_count}'
+
   bot.edit_message_text(
       text_msg,
       chat_id=chat_id,
@@ -450,8 +445,10 @@ def next_draw_callback(call):
     text_msg = (
         f'🏁 **پایان قرعه کشی!**\n\n'
         f'تمام {data['total_count']} قرعه انجام شد.\n'
-        f'🏆 **اعداد برنده نهایی:** {all_drawn_str}'
+        f'🏆 **اعداد برنده نهایی:** {all_drawn_str}\n\n'
+        f'✨ لطفاً یکی از گزینه‌های زیر را انتخاب کن:'
     )
+    user_state.pop(chat_id, None)
     bot.edit_message_text(
         text_msg,
         chat_id=chat_id,
