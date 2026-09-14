@@ -8,7 +8,7 @@ from flask import Flask
 from threading import Thread
 import time
 
-TOKEN = '8734549948:AAG8XuP5fWTa1oGHt4QYrP49i_VYx9iXYSk'
+TOKEN = '8734549948:AAHarbMuiuKy3I1bMA6Jkdq9PIbUyDOldEs'
 bot = telebot.TeleBot(TOKEN)
 
 # آیدی عددی صاحب اصلی ربات خودتان را اینجا بگذارید:
