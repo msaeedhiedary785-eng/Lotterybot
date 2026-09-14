@@ -8,10 +8,10 @@ from flask import Flask
 from threading import Thread
 import time
 
-TOKEN = '8734549948:AAG1q3YsKwHdafTA-QQRdt6cZ82yGIVExps'
+TOKEN = '8734549948:AAG8XuP5fWTa1oGHt4QYrP49i_VYx9iXYSk'
 bot = telebot.TeleBot(TOKEN)
 
-# آیدی عددی صاحب اصلی ربات خودتان را اینجا بگذارید (مثلا 7351850953):
+# آیدی عددی صاحب اصلی ربات خودتان را اینجا بگذارید (اگر 7351850953 آیدی خودتان نیست، با آیدی عددی واقعی خودتان عوض کنید):
 MAIN_OWNER_ID = 7351850953
 
 # مجموعه‌ای برای ذخیره یوزرنیم‌های ادمین (با حروف کوچک و بدون @)
