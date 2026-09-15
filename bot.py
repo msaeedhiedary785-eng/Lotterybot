@@ -11,10 +11,9 @@ import time
 TOKEN = '8734549948:AAHarbMuiuKy3I1bMA6Jkdq9PIbUyDOldEs'
 bot = telebot.TeleBot(TOKEN)
 
-# ثبت خودکار منوی دستورات (علامت / در کنار کادر چت)
+# فقط دستور start در منوی دستورات باقی ماند
 bot.set_my_commands([
     types.BotCommand('start', 'شروع مجدد ربات و نمایش منو'),
-    types.BotCommand('help', 'راهنمای ربات'),
 ])
 
 # آیدی عددی صاحب اصلی ربات خودتان را اینجا بگذارید:
@@ -123,11 +122,18 @@ def get_finished_markup(user_id):
   return markup
 
 
-@bot.message_handler(commands=['start', 'help'])
+@bot.message_handler(commands=['start'])
 def send_welcome(message):
   chat_id = message.chat.id
   user_id = message.from_user.id
   user_state.pop(chat_id, None)
+
+  # حذف کیبورد قبلی از پایین صفحه اگر وجود داشته باشد
+  remove_kb = types.ReplyKeyboardRemove()
+  temp_msg = bot.send_message(
+      chat_id, 'در حال بارگذاری منو...', reply_markup=remove_kb
+  )
+  bot.delete_message(chat_id, temp_msg.message_id)
 
   markup = get_main_menu_markup(user_id)
 
